@@ -43,7 +43,7 @@ void Nascondi_nave(Client *client) {
 
     if (riga >= 0 && riga < DIM_GRIGLIA && colonna >= 0 && colonna < DIM_GRIGLIA) {
         client->griglia[riga][colonna] = 'X';
-        sprintf(buffer, "La nave Ã¨ stata posizionata nelle coordinate (%d, %d)\n", riga, colonna);
+        sprintf(buffer, "La nave è stata posizionata nelle coordinate (%d, %d)\n", riga, colonna);
         send(client->socket, buffer, strlen(buffer), 0);
     } else {
         sprintf(buffer, "Coordinate invalide, riprova.\n");
@@ -64,13 +64,50 @@ int Indovina_posizione(Client *attaccante, Client *difensore) {
 
         if (riga >= 0 && riga < DIM_GRIGLIA && colonna >= 0 && colonna < DIM_GRIGLIA) {
             if (difensore->griglia[riga][colonna] == 'X') {
-                sprintf(buffer, "Complimenti! Hai indovinato! La nave dell'avversario Ã¨ nelle coordinate (%d, %d)\n", riga, colonna);
+                sprintf(buffer, "Complimenti! Hai indovinato! La nave dell'avversario è nelle coordinate (%d, %d)\n", riga, colonna);
                 send(attaccante->socket, buffer, strlen(buffer), 0);
                 sprintf(buffer, "Il client %d ha vinto indovinando la posizione della nave!\n", attaccante->id);
                 send(difensore->socket, buffer, strlen(buffer), 0);
-                return 1; // Vittoria
+                //return 1; // Vittoria
+
+                sprintf(buffer, "Si vuole riavviare la partita?\n");
+                send(attaccante->socket, buffer, strlen(buffer), 0);
+                send(difensore->socket, buffer, strlen(buffer), 0);
+
+                char rispostaAttaccante[256];
+                char rispostaDifensore[256];
+                recv(attaccante->socket, rispostaAttaccante, sizeof(rispostaAttaccante), 0);
+                recv(difensore->socket, rispostaDifensore, sizeof(rispostaDifensore), 0);
+                // rimuovo l'ultimo carattere se no non funziona
+                rispostaAttaccante[strlen(rispostaAttaccante)-1] = '\0';
+                rispostaDifensore[strlen(rispostaDifensore)-1] = '\0';
+                printf("Risposta client %d: %s\n", attaccante->id, rispostaAttaccante);
+                printf("Risposta client %d: %s\n", difensore->id, rispostaDifensore);
+                if (strcmp(rispostaAttaccante, "n") == 0 || strcmp(rispostaDifensore, "n") == 0) {
+                    sprintf(buffer, "Uno dei due giocatori ha deciso di interrompere il gioco.");
+                    send(attaccante->socket, buffer, strlen(buffer),0);
+                    send(difensore->socket, buffer, strlen(buffer),0);
+                    return 1;
+                } else if (strcmp(rispostaAttaccante, "s") == 0 && strcmp(rispostaDifensore, "s") == 0) {
+                    sprintf(buffer, "La partita è stata riavviata.");
+                    send(attaccante->socket, buffer, strlen(buffer),0);
+                    send(difensore->socket, buffer, strlen(buffer),0);
+                    Inizializza_client(attaccante, attaccante->id, attaccante->socket);
+                    Inizializza_client(difensore, difensore->id, difensore->socket);
+                    Nascondi_nave(attaccante);
+                    Nascondi_nave(difensore);
+                    Stampa_griglia(attaccante);
+                    Stampa_griglia(difensore);
+                    return 0;
+                } else {
+                    sprintf(buffer, "Risposta non valida, la partita è stata interrotta.");
+                    send(attaccante->socket, buffer, strlen(buffer),0);
+                    send(difensore->socket, buffer, strlen(buffer),0);
+                    return 1;
+                }
+
             } else {
-                sprintf(buffer, "Mancato! La nave dell'avversario non Ã¨ nelle coordinate (%d, %d)\n", riga, colonna);
+                sprintf(buffer, "Mancato! La nave dell'avversario non è nelle coordinate (%d, %d)\n", riga, colonna);
                 send(attaccante->socket, buffer, strlen(buffer), 0);
                 return 0; // Continua il gioco
             }
@@ -80,6 +117,8 @@ int Indovina_posizione(Client *attaccante, Client *difensore) {
         }
     }
 }
+
+
 
 int main() {
     Client clients[MAX_CLIENTS];
