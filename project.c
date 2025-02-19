@@ -13,12 +13,14 @@ typedef struct {
     int id;
     int socket;
     char griglia[DIM_GRIGLIA][DIM_GRIGLIA];
+    char tentativi[DIM_GRIGLIA][DIM_GRIGLIA];  //GRIGLIAe tentativi
 } Client;
 
 void Inizializza_client(Client *client, int id, int socket) {
     client->id = id;
     client->socket = socket;
-    memset(client->griglia, 'O', sizeof(client->griglia));  // 'O' rappresenta una cella vuota
+    memset(client->griglia, 'O', sizeof(client->griglia));
+    memset(client->tentativi, '.', sizeof(client->tentativi));
 }
 
 void Stampa_griglia(Client *client) {
@@ -29,6 +31,20 @@ void Stampa_griglia(Client *client) {
         }
         printf("\n");
     }
+}
+
+void Stampa_tentativi(Client *client) {
+    char buffer[512];
+    sprintf(buffer, "\nI tuoi tentativi (X = colpito, M = mancato, . = non tentato):\n");
+    for (int i = 0; i < DIM_GRIGLIA; i++) {
+        char riga[64] = "";
+        for (int j = 0; j < DIM_GRIGLIA; j++) {
+            sprintf(riga + strlen(riga), "%c ", client->tentativi[i][j]);
+        }
+        strcat(riga, "\n");
+        strcat(buffer, riga);
+    }
+    send(client->socket, buffer, strlen(buffer), 0);
 }
 
 void Nascondi_nave(Client *client) {
@@ -56,7 +72,10 @@ int Indovina_posizione(Client *attaccante, Client *difensore) {
     char buffer[256];
 
     while (1) {
-        sprintf(buffer, "Client %d, inserisci le coordinate per indovinare la posizione della nave dell'avversario (riga e colonna, da 0 a %d):\n", attaccante->id, DIM_GRIGLIA - 1);
+        Stampa_tentativi(attaccante);
+        
+        sprintf(buffer, "Client %d, inserisci le coordinate per indovinare la posizione della nave dell'avversario (riga e colonna, da 0 a %d):\n", 
+                attaccante->id, DIM_GRIGLIA - 1);
         send(attaccante->socket, buffer, strlen(buffer), 0);
 
         recv(attaccante->socket, buffer, sizeof(buffer), 0);
@@ -64,11 +83,12 @@ int Indovina_posizione(Client *attaccante, Client *difensore) {
 
         if (riga >= 0 && riga < DIM_GRIGLIA && colonna >= 0 && colonna < DIM_GRIGLIA) {
             if (difensore->griglia[riga][colonna] == 'X') {
+                attaccante->tentativi[riga][colonna] = 'X'; //HITTA NAVE
                 sprintf(buffer, "Complimenti! Hai indovinato! La nave dell'avversario è nelle coordinate (%d, %d)\n", riga, colonna);
                 send(attaccante->socket, buffer, strlen(buffer), 0);
                 sprintf(buffer, "Il client %d ha vinto indovinando la posizione della nave!\n", attaccante->id);
                 send(difensore->socket, buffer, strlen(buffer), 0);
-                //return 1; // Vittoria
+                //return 1; // Vittoria è qui
 
                 sprintf(buffer, "Si vuole riavviare la partita?\n");
                 send(attaccante->socket, buffer, strlen(buffer), 0);
@@ -107,9 +127,10 @@ int Indovina_posizione(Client *attaccante, Client *difensore) {
                 }
 
             } else {
+                attaccante->tentativi[riga][colonna] = 'M';  // Mark miss
                 sprintf(buffer, "Mancato! La nave dell'avversario non è nelle coordinate (%d, %d)\n", riga, colonna);
                 send(attaccante->socket, buffer, strlen(buffer), 0);
-                return 0; // Continua il gioco
+                return 0; // COntinua il gioco
             }
         } else {
             sprintf(buffer, "Coordinate invalide, riprova.\n");
